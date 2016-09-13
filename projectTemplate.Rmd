@@ -1,0 +1,667 @@
+Loan Data from Prosper by SHIVANAND
+========================================================
+# Initial Analysis
+###Initially I was not very well aware of the terminology used. So I took some time in understanding the variables as well as the business model of Prosper. Understanding the business model helped in framing the right questions. Prosper had 2 stints, the earlier one between 2006-2008 was not very successfull, however they made changes to their business model post 2009 July, and their financial health improved. Hence, I would like my analysis to be based on post July 2009 data
+
+###Below are the links I used to know about the data
+###https://www.prosper.com/about-us/blog/
+###http://www.lendacademy.com/prosper-review/
+###https://www.quora.com/profile/Sunil-Kumar-1986/answers/Prosper-P2P-lending
+###https://www.quora.com/Why-is-Lending-Club-larger-than-Prosper
+###https://www.quora.com/Why-do-Lending-Tree-and-Prosper-need-a-lenders-home-address
+###http://www.lendacademy.com/the-difference-between-a-default-and-a-charge-off-at-lending-club/
+
+###Before looking at the data I was keen on exploring the following questions
+###1) From an Investor perspective, which loan attributes affects EstimatedReturn
+###2) Which attributes contribute more to Loan defaults/Chargedoffs.
+###3) Number of Investors vs each Loan. Is there any correlation between Number of Investors vs loan defaults. It could be a good parameter of Investors behaviour
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+
+library(corrplot)
+library(ggplot2)
+library(scales)
+library(gridExtra)
+library(dplyr)
+library(reshape2)
+setwd('C:/Users/shivanand/Documents/Udacity/Data Analyst Nanodegree/P4 - Explore and Summarise Data')
+
+
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+
+pf <- read.csv('prosperLoanData.csv', header=TRUE)
+
+df <- pf[c('ListingCreationDate', 'Term', 'LoanStatus','EstimatedEffectiveYield', 'EstimatedLoss', 'EstimatedReturn', 'ProsperScore', 'ListingCategory..numeric.', 'EmploymentStatusDuration', 'OpenCreditLines', 'TotalInquiries', 'AmountDelinquent', 'DebtToIncomeRatio', 'StatedMonthlyIncome', 'TotalProsperPaymentsBilled', 'ProsperPaymentsOneMonthPlusLate', 'LoanOriginalAmount', 'Investors')]
+
+```
+
+# Univariate Plots Section
+
+###
+#### In all there are 81 variables in the dataset, for now, I would like to analyse these 18 variables in detail.
+#### 'ListingCreationDate', 'Term', 'LoanStatus','EstimatedEffectiveYield', 'EstimatedLoss', 'EstimatedReturn','ProsperScore', 'ListingCategory..numeric.', 'EmploymentStatusDuration', 'OpenCreditLines', 'TotalInquiries', 'AmountDelinquent', 'DebtToIncomeRatio', 'StatedMonthlyIncome', 'TotalProsperPaymentsBilled', 'ProsperPaymentsOneMonthPlusLate', 'LoanOriginalAmount', 'Investors'
+
+##### Reasons for selecting these columns are : 
+##### ListingCreationDate: I want to select listing post July 2009 period. 
+##### Term: curious to see how estimatedRates, defaults and chargedoff loans change based on the Term structure
+##### LoanStatus: to identify the status of loans
+##### EstimatedEffectiveYield: From an investor perspective, this is potentially the maximum yeild he can get
+##### EstimatedLoss 
+##### EstimatedReturn: to verify EstimatedReturn = EstimatedEffectiveYield - EstimatedLoss holds TRUE
+##### ProsperScore: to see the relationship between customer profile vs his riskrate
+#####ListingCategory..numeric.: Category of loans
+#####EmploymentStatusDuration : I could also have chosen Occupation or EmploymentStatus, however, I thought EMployee monthly income + EmployeeStatusDuration would be a better predictor of employee loan repayment capability
+#####OpenCreditLines: Using only OpenCreditLines since it must include    OpenRevolvingAccounts as well (I understood the definitions of Credit Lines as : The amount that borrower is eligible to get, however he need not use all of it at once )
+#####TotalInquiries: Tells us, if he is a new customer or an old one
+#####AmountDelinquent: Tells us, how much a customer has defaulted in previous loans
+#####DebtToIncomeRatio: Tells us about the financial health of customer
+#####StatedMonthlyIncome: 
+#####TotalProsperPaymentsBilled: Number of times a customer has paid back for earlier loans
+#####ProsperPaymentsOneMonthPlusLate: number of times he has not paid back for earlier loans
+#####LoanOriginalAmount: amount of money applied by the customer
+#####Investors : Number of Investors invested in the loan
+
+```{r echo=FALSE, Univariate_Plots}
+
+#Check the Structure of df
+str(df)
+print('The following are Factor variables: ListingCreationDate, LoanStatus, ')
+
+#TODO: DONE Convert ListingCreationDate from factor to Date format
+print('Convert ListingCreationDate from factor to Date format')
+df$ListingCreationDate <- as.Date(df$ListingCreationDate,  format="%Y-%m-%d")
+#TODO: DONE subset the data, only considering dates after July 2009
+df <- subset(df, df$ListingCreationDate > as.Date('2009-07-31'))
+
+
+#TODO: DONE Convert Term, ProsperScore, ListingCategory to Factor variables, describe these variables once again
+print('Convert Term, ProsperScore, ListingCategory to Factor variables and ListingCreationDate to Date variable')
+cat('Term has 3 levels: 12, 36, 60', 'ProsperScore: A custom risk score built using historical Prosper data. The score ranges from 1-10, with 10 being the best, or lowest risk score', 'ListingCategory: The category of the listing that the borrower selected when posting their listing: 0 - Not Available, 1 - Debt Consolidation, 2 - Home Improvement, 3 - Business, 4 - Personal Loan, 5 - Student Use, 6 - Auto, 7- Other, 8 - Baby&Adoption, 9 - Boat, 10 - Cosmetic Procedure, 11 - Engagement Ring, 12 - Green Loans, 13 - Household Expenses, 14 - Large Purchases, 15 - Medical/Dental, 16 - Motorcycle, 17 - RV, 18 - Taxes, 19 - Vacation, 20 - Wedding Loans')
+
+df$Term <- as.factor(df$Term)
+df$ProsperScore <- as.factor(df$ProsperScore)
+
+#TODO: DONE Change column name of ListingCategory..numeric. to ListingCategory
+print('Change column name of ListingCategory..numeric. to ListingCategory')
+names(df) <- ifelse(names(df) == 'ListingCategory..numeric.', 'ListingCategory', names(df))
+df$ListingCategory <- as.factor(df$ListingCategory)
+
+#TODO: DONE Confirm the structure 
+print('Confirm the structure with above changes')
+str(df)
+
+```
+
+
+
+```{r echo=FALSE, Univariate_Plots_Contd}
+#TODO: Analyse each distribution, applying any suitable transformation if the scales are not very good
+
+#TODO: DONE Analyse ListingCreationDate
+bin <- 30 # used for aggregating the data and aligning the labels
+p1 <- ggplot(df, aes(ListingCreationDate, ..count..))
+p1 <- p1 + geom_histogram(binwidth = bin, colour="white")
+
+#TODO: DONE Analyse Term
+p2 <- ggplot(df, aes(Term, ..count..)) +
+  geom_bar()
+
+grid.arrange(p1, p2)
+print('Summary ListingCreationDate')
+summary(df$ListingCreationDate)
+
+print('Summary Term')
+summary(df$Term)
+
+cat('ListingCreationDate distribution is left skewed, so more customers started listing from the year 2013. ', 'Most customers take 3 year loans, followed by 5 year loans.')
+
+#TODO: Analyse LoanStatus
+#TODO: Analyse ProsperScore
+#TODO: Analyse ListingCategory
+p3 <- ggplot(df, aes(LoanStatus, ..count..)) +
+  geom_bar() +
+  scale_x_discrete(labels = c("Cancelled","Chargedoff","Completed", "Current","Defaulted","FPInProgress", 'Past Due VI', 'Past Due I', 'Past Due II', 'Past Due III', 'Past Due IV', 'Past Due V'))
+p4 <- ggplot(df, aes(ProsperScore, ..count..)) +
+  geom_bar()
+p5 <- ggplot(df, aes(ListingCategory, ..count..)) +
+  geom_bar()
+grid.arrange(p3,p4,p5)
+
+print("Summary LoanStatus")
+summary(df$LoanStatus)
+print('Good number of loans are completed, however the chargedoff, defaulted loans are also quite high. Interested to check what is the customer profile and preferences of these customers, Performed this analysis inBivariate Plots Section')
+
+print("Summary ProsperScore")
+summary(df$ProsperScore)
+print('Scores are normally distributed. Perhaps this is the business model of Prosper to follow a normal distribution while giving ratings. I am interested see summary statistics of scores for different LoanStatus, (performed this analysis in Bivariate Plots Section)')
+
+print("Summary ListingCategory")
+summary(df$ListingCategory)
+print('Majority people take loans for Debt Consolodation purposes followed by Other, Home Improvement, Business. Least preffered categories are RV, Boat, Cosmetic Purposes')
+
+#TODO: Analyse LoanOriginalAmount
+#TODO: Analyse EstimatedEffectiveYield
+#TODO: Analyse EstimatedLoss
+p6 <- ggplot(aes(LoanOriginalAmount), data=df) + 
+  geom_histogram()
+p7 <- ggplot(aes(EstimatedEffectiveYield), data=df) + 
+  geom_histogram()
+p8 <- ggplot(aes(EstimatedLoss), data=df) + 
+  geom_histogram()
+grid.arrange(p6, p7, p8)
+
+print("Summary LoanOriginalAmount")
+summary(df$LoanOriginalAmount)
+print('Minimum Loan amount is 1000$, while maximum is 35,000$. It is interesting to observe the mode, The graph is replotted with different binwidth below to observe the mode')
+print("Summary EstimatedEffectiveYield")
+summary(df$EstimatedEffectiveYield)
+print('mean and median are approximately equal to 16.7%')
+print("Summary EstimatedLoss")
+summary(df$EstimatedLoss)
+print('While the maximum loss is 36.6%, the mean and median are 8% and 7.2% resp, suggesting a slighly positive skew')
+
+print('Replotting after readjusting the binwidths')
+
+p6 <- ggplot(aes(LoanOriginalAmount), data=df) + 
+  geom_histogram(binwidth = 100)
+p7 <- ggplot(aes(EstimatedEffectiveYield), data=df) + 
+  geom_histogram(binwidth = .01)
+p8 <- ggplot(aes(EstimatedLoss), data=df) + 
+  geom_histogram(binwidth = .01)
+grid.arrange(p6, p7, p8)
+print(' LoanOriginalAmount It is a trimodal distribution at 4000, 15000 and 10000 Euros. EsimatedEffectiveYield appears to be slightly bi-modal or platykurptic distribution whereas EstimatedLoss follows platykurptic distibution with right tails')
+
+print('Creating a new variable "EstimatedReturnCalc" as EstimatedEffectiveYield - EstimatedLoss. This is compared with EstimatedReturn in the original dataset to see if they are the same')
+df$EstimatedReturnCalc <- df$EstimatedEffectiveYield - df$EstimatedLoss
+cat('sum(df$EstimatedReturn): ', sum(df$EstimatedReturn))
+cat('sum(df$EstimatedReturnCalc): ', sum(df$EstimatedReturnCalc))
+print('There seems to be some error here, as according to the definitions EstimatedReturn = EstimatedEffectiveYield - EstimatedLoss, but that does not seem to the case here.')
+print('Create density plots to show the difference between EstimatedReturn(Black Color)  and EstimatedReturnCalc(Red Color)')
+p19 <- ggplot(aes(EstimatedReturn, ..count..), data=df) + 
+  geom_density() + 
+  geom_density(aes(x=EstimatedReturnCalc, ..count..), color = 'red')
+p19
+print('This is contradictory to the defination given in the document. In the proceeding analysis, I consider EstimatedReturn and not EstimatedReturnCalc')
+
+#TODO: Analyse EmploymentStatusDuration
+#TODO: Analyse StatedMonthlyIncome
+#TODO: Analyse DebtToIncomeRatio
+p9 <- ggplot(aes(EmploymentStatusDuration), data=df) + 
+  geom_histogram()
+p10 <- ggplot(aes(StatedMonthlyIncome), data=df) + 
+  geom_histogram(binwidth = 100) 
+p11 <- ggplot(aes(DebtToIncomeRatio), data=df) + 
+  geom_histogram(binwidth = .05)
+grid.arrange(p9, p10, p11)
+
+print('Summary of EmploymentStatusDuration')
+summary(df$EmploymentStatusDuration)
+print('Median Duration is 74 months. The maximum value is 755 months. It is very hard to belive this number. Would like to analyse these customers in Multivariate analysis')
+
+print('Summary of StatedMonthlyIncome')
+summary(df$StatedMonthlyIncome)
+print('Clearly there are a lot of outliers, however mean and median are fairly close, so we can consider the distribution as fairly normal, although a better representaion is a positive skewed distribution')
+
+print('Summary of DebtToIncomeRatio')
+summary(df$DebtToIncomeRatio)
+print('Again, there are a lot of outliers, but redrawing the distribution after removing them, it should look fairly normal ')
+
+print('The above distributions are not very informative. Hence, change the scale of EmploymentStatusDuration to logScale, remove outliers of StatedMonthlyIncome, remove outliers of DebtToIncomeRatio. Redrawing after these changes')
+
+p9 <- ggplot(aes(EmploymentStatusDuration), data=df) + 
+  geom_histogram() + 
+  scale_x_log10()
+p10 <- ggplot(aes(StatedMonthlyIncome), data=df) + 
+  geom_histogram(binwidth = 500) +
+  coord_cartesian(xlim = c(0,26000))
+p11 <- ggplot(aes(DebtToIncomeRatio), data=df) + 
+  geom_histogram(binwidth = .05) +
+  coord_cartesian(xlim = c(0,2.5))
+grid.arrange(p9, p10, p11)
+print('Now EmploymentStatusDuration distribution looks normal. The other 2 distributions are positively skewed distributions with long tails')
+
+#TODO: Analyse OpenCreditLines
+#TODO: Analyse TotalInquiries
+#TODO: Analyse AmountDelinquent
+p12 <- ggplot(aes(OpenCreditLines), data=df) + 
+  geom_histogram()
+p13 <- ggplot(aes(TotalInquiries), data=df) + 
+  geom_histogram() 
+p14 <- ggplot(aes(AmountDelinquent), data=df) + 
+  geom_histogram()
+grid.arrange(p12, p13, p14)
+
+print('Summary of OpenCreditLines')
+summary(df$OpenCreditLines)
+print('As mean and median are fairly close, the distribution is fairly normal, however there are outliers, as maximum value is quite high')
+print('Summary of TotalInquiries')
+summary(df$TotalInquiries)
+print('This is a discrete distribution with a positive skew')
+print('Summary of AmountDelinquent')
+summary(df$AmountDelinquent)
+print('There must very few records as, minimum, 1st Quartile, 2nd quartile and 3rd quartile are all zero.')
+
+print('Redrawing AmountDelinquent as LogNormal distributions. Note that I have excluded majority of records (73681) as its value is 0')
+p14 <- ggplot(aes(AmountDelinquent), data=df) + 
+  geom_histogram()+ scale_x_log10()
+grid.arrange( p14)
+print('This does look normal, or maybe platykurtic ')
+
+#TODO: Analyse TotalProsperPaymentsBilled
+#TODO: Analyse ProsperPaymentsOneMonthPlusLate
+#TODO: Analyse Investors
+p15 <- ggplot(aes(TotalProsperPaymentsBilled), data=df) + 
+  geom_histogram()
+p16 <- ggplot(aes(ProsperPaymentsOneMonthPlusLate), data=df) + 
+  geom_histogram() 
+p17 <- ggplot(aes(Investors), data=df) + 
+  geom_histogram()
+grid.arrange(p15, p16, p17)
+
+print('Summary of TotalProsperPaymentsBilled')
+summary(df$TotalProsperPaymentsBilled)
+print('Many customers are new as 64990 records are NULL, meaning they are first time customers. Otherwise it looks like a positive skew distribution. This does surprise me a bit as in the earlier analysis of Term structure we saw majority of loans were of 3, 5 years Term structure, however in this case the mean is 2 years ')
+
+print('summary of ProsperPaymentsOneMonthPlusLate')
+summary(df$ProsperPaymentsOneMonthPlusLate)
+print('Again Many customers are new as 64990 records are NULL, meaning they are first time customers, also only a fraction of people are paying quite late as 3rd quartile is 0 and mean is also close to 0. Multivariate plots might give better picture')
+
+print('summary of Investors')
+summary(df$Investors)
+print('Looks like a lognormal distribution. However atleast 25% of investments are made by single investor, would like to see what types of loan they invest in. ')
+
+print('Lognormal distribution of Investors and plotting a new distribution for ProsperPaymentsOneMonthPlusLate > 0 ')
+p16 <- ggplot(aes(ProsperPaymentsOneMonthPlusLate), data=subset(df, df$ProsperPaymentsOneMonthPlusLate >0)) + stat_count()
+
+p17 <- ggplot(aes(Investors), data=df) + 
+  geom_histogram()+ scale_x_log10()
+grid.arrange(p16, p17)
+
+print('ProsperPaymentsOneMonthPlusLate shows that delays upto 5 payments are common, with 1 and 2 delays in payments being more common. Also the Investors distribution is platykurptic if we ignore single Investors.There are around 26000 investors who invest completely in a loan')
+
+
+#TODO : DONE create PaymentRatio Column
+print('Create ProsperPaymentsRatio column, it contains the ratio of paymentsOneMonthPlusLate and TotalProsperPaymentsBilled')
+df$ProsperPaymentsRatio = df$ProsperPaymentsOneMonthPlusLate/df$TotalProsperPaymentsBilled
+```
+
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+####The original dataset contains 113937 records of 81 variables, however I choose 84672 records of 18 variables. Prosper changed their business model post July 2009, and I considered only those records. 
+
+####The reasons for choosing these 18 variables are explained above. They were chosen in accordance to my objective, which are, as explained above:
+####1) From an Investor perspective, which loan attributes contribute to EstimatedReturn
+####2) Which attributes contribute more to Loan defaults/charge offs.
+###3) Number of Investors vs each Loan. Is there any correlation between Number of Investors vs loan defaults. 
+
+####To summarise: 
+####There are 4 factor variables: 
+#####Term - It has 3 levels 12, 36 and 60, and majority of these have 36 months term structure
+#####LoanStatus - Majority of the loans are completed, however 2nd highest are ChargedOff and Cancelled loans
+#####ProsperScore - Clearly follows a normal distribution, perhaps the algorithm is designed that way
+#####ListingCategory - Majority people take loans for Debt Consolodation purposes followed by Other, Home Improvement, Business. Least preffered categories are RV, Boat, Cosmetic Purposes
+
+####Also, among the numeric parameters
+#####EstimatedEffectiveYield - Mean is 16.88% and the distribution is platokurptic
+#####EstimatedReturn - Mean is 9.6% and the distribution is normal
+#####LoanOriginalAmount - Tri modal distribution with peaks at 4000$, 10000$ and 15000$
+#####StatedMonthlyIncome - Mean of 5933$ , with a skightly positive skewed distribution
+#####DebtToIncomeRatio - There are a lot of outliers with mean as 25.9%
+#####EmployeeStatusDuration - Median Duration is 74 months, with maximum value being 755 months, this value seems highly improbable
+#####Just a little more than quartile of Listings are Invested by Single Investors.
+#####Other variables like OpenCreditLines, TotalInquiries and AmountDelinquent were considered to estimate customers profile. 
+####All variables and their distributions are discussed in detail in the analysis section
+
+### What is/are the main feature(s) of interest in your dataset?
+#####EstimatedReturn is definately a key feature of Interest. Apart from it, I am also keen to note the factors influencing 'Chargedoff' and 'Cancelled' loan status. 
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+#####ProsperScore: A factor variable specifying the riskiness associated with the loan is an important variable. 
+#####From a customer segmentation perspective: StatedmonthlyIncome, EmployeeStatusDuration, OpenCreditLines, DebtToIncomeRatio and AmountDeliquent might help in addressing factors responsible for Chargedoff and Cancelled Loans.
+#####Above factors along with Number of Investors and OriginalLoanAmount might have a say in estimating Returns
+
+
+### Did you create any new variables from existing variables in the dataset?
+##### In the documents it was mentioned that EstimatedReturn as the difference between EstimatedEffectiveYield and EstimatedLoss. Thus, I created a variable EstimatedReturnCalc as EstimatedEffectiveYield - EstimatedLoss to test this statement. And I observed that the two namely, EstimatedReturn and EstimatedReturnCalc are not equal.
+#####Another Variable ProsperPaymentsRatio = ProsperPaymentsOneMonthPlusLate/ TotalProsperPaymentsBilled to see the fraction of latepayments over total payments.
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+#####Yes, I observed that few variables like Investors, EmploymentStatusDuration and AmountDelinquent were log normally distributed Also, there were a high number of outliers for a lot of variables like StatedMonthlyIncome, DebtToIncomeRatio and OpenCreditLines. But I observed that these distributions were fairly normal if these outliers were excluded. I had done these transformations for better clarity.
+
+######Mean of TotalProsperPaymentsBilled is 2 years, but from the TermStructure majority of the loans are 3 and 5 years, thus surprised to see mean is 2 years and not between 3 and 5 years
+
+
+# Bivariate Plots Section
+######################################################################
+#### I am interested to look at 2 important questions that might help an investor to decide to Invest or not
+#####1) EstimatedReturn for a given Listing
+#####2) Estimated Loanstatus based on the customer profile
+
+#### For now I do not have the skills to perform Classification, so focusing more on EDA. In all there are 20 variables. I created sets of variables for each question.  
+#######################################################################
+
+####
+#####I segregated 2 sets of variables, the 1st set of variables explores relationship between EstimatedReturn with other variables of this set. The variables are ListingCreationDate, Term, EstimatedReturn, ProsperScore, ListingCategory, LoanOriginalAmount, CreditScoreRangeLower and LoanStatus
+
+####The Second set of variables explores the customer profiles of people w.r.t LoanStatus. The following variables define the customer Types :StatedMonthlyIncome, OpenCreditLines, TotalInquiries, EmploymentStatusDuration, DebtToIncomeRation, LoanOriginalAmount, ProsperPaymentOneMonthLatePlus/TotalPaymentsBilled
+
+
+```{r echo=FALSE, Bivariate_Plots}
+#Not performing ggpairs for now.
+
+print('Plot a correlation map for the Numeric and Int type columns')
+
+#Making ProsperScore numeric to see its correlations with other variables, later, changed it back to Factor
+df$ProsperScore = as.numeric(df$ProsperScore)
+mcor <- cor(df[c(4,5,6,7,9,10,11,12,13,14,15,18,20)], use = 'complete.obs')
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(mcor, method="shade", shade.col=NA, tl.col="black", tl.srt=45,
+         col=col(200), addCoef.col="black", addcolorlabel="no", order="AOE")
+
+df$ProsperScore = as.factor(df$ProsperScore)
+print('Observed interesting relations between ProsperScore and some variables: 1) Weak positive correlation with Investors 
+      2) Negative correlation with EstimatedReturn
+      3) Weak negative correlation with TotalInquiries')
+print('Surprisingly for other variables didnot observe any strong correlations, most of these were zero to weak correlations. Only other strong correlation(>0.7) is between EstimatedEffectiveYield and EstimatedReturn')
+print('The above results could have been due to not segmenting the results based on variables of factor type, like ListingCategory, Term, LoanStatus and ProsperScore. Further analysis would take these variables into consideration.')
+
+print('I segregated 2 sets of variables, the 1st set of variables explores relationship between EstimatedReturn with other variables of this set. The variables are ListingCreationDate, Term, ProsperScore, ListingCategory, LoanOriginalAmount, CreditScoreRangeLower and LoanStatus')
+
+print('The Second set of variables explores the customer profiles of people w.r.t LoanStatus. The following variables define the customer Types :StatedMonthlyIncome, OpenCreditLines, TotalInquiries, EmploymentStatusDuration, DebtToIncomeRation, LoanOriginalAmount, ProsperPaymentOneMonthLatePlus/TotalPaymentsBilled')
+
+print('Below Set of plots explore the relationship between Estimated Return and other varibles of the 1st Set')
+
+print('EstimatedReturn vs ProsperScore')
+p21 <- ggplot(aes(ProsperScore, EstimatedReturn), data = df) + 
+     geom_boxplot(outlier.size=1.5, outlier.shape=21) + stat_summary(fun.y="mean", geom="point", shape=23, size=1, fill="orange")
+
+grid.arrange(p21)
+
+print('We not that loans with highest risk have provided highest median and mean returns. Least riskiest Loans have lowest returns. 1st quartile returns is highest for most risky loan')
+
+print('EstimatedReturn vs ListingCategory')
+p22 <- ggplot(aes(ListingCategory, EstimatedReturn), data = df) + 
+    geom_boxplot(outlier.size=1.5, outlier.shape=21) + stat_summary(fun.y="mean", geom="point", shape=23, size=1, fill="orange")
+grid.arrange(p22)
+
+print('Redrawing the same graph by computing Mean and Median of EstimatedReturn vs ListingCategory')
+# Mean and Median of EstimatedReturn vs ListingCategory
+meanEstimatedReturn <- df[c('ListingCategory', 'EstimatedReturn')] %>% 
+    group_by(ListingCategory) %>% 
+    summarise (mean = mean(EstimatedReturn), median = median(EstimatedReturn))
+meanEstimatedReturn <- melt(as.data.frame(meanEstimatedReturn), id = 'ListingCategory')
+p23 <- ggplot(aes(ListingCategory, value, fill = variable), data= meanEstimatedReturn) +
+  geom_bar(stat="identity", position = 'dodge')
+grid.arrange(p23)
+
+print('Debt Consolidation has the lowest median and the 2nd least mean EstimatedReturn')
+
+print('EstimatedReturn vs LoanStatus')
+p24 <- ggplot(aes(LoanStatus, EstimatedReturn), data = df) + 
+    geom_boxplot(outlier.size=1.5, outlier.shape=21) + stat_summary(fun.y="mean", geom="point", shape=23, size=1, fill="orange")
+grid.arrange(p24)
+
+print('Redrawing the mean and of EstimatedReturn vs LoanStatus, but only considering Chargedoff, Completed, Current and Defaulted LoanStatus')
+# Mean and Median of EstimatedReturn vs LoanStatus
+meanEstimatedReturn <- df[c('LoanStatus', 'EstimatedReturn')] %>% 
+    group_by(LoanStatus) %>% 
+    summarise (mean = mean(EstimatedReturn), median = median(EstimatedReturn))
+meanEstimatedReturn <- melt(as.data.frame(meanEstimatedReturn), id = 'LoanStatus')
+p25 <- ggplot(aes(LoanStatus, value, fill = variable), data=subset(meanEstimatedReturn, meanEstimatedReturn$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) + geom_bar(stat="identity", position = 'dodge')
+grid.arrange(p25)
+
+print('Estimatedreturn is highest for ChargedOff and Defaulted loans, and the least EstimatedReturn is for CurrentLoans')
+
+print('EstimatedReturn vs Term')
+p26 <- ggplot(aes(Term, EstimatedReturn), data = df) + 
+    geom_boxplot(outlier.size=1.5, outlier.shape=21) + stat_summary(fun.y="mean", geom="point", shape=23, size=1, fill="orange")
+grid.arrange(p26)
+
+print('Mean EstimatedReturn are almost comparable for 3 yr and 5yr Terms, however, the variance is highest for 3 yr Term')
+
+print('EstimatedReturn vs LoanOriginalAmount')
+p27 <- ggplot(aes(LoanOriginalAmount, EstimatedReturn), data = df) + 
+    geom_point()
+grid.arrange(p27)
+
+print('Clearly the variance is very high for loans with low LoanOriginalAmount, however there is no strong correlation')
+
+print('EstimatedLoss vs LoanStatus')
+p28 <- ggplot(aes(LoanStatus, EstimatedLoss), data = df) + 
+    geom_boxplot(outlier.size=1.5, outlier.shape=21) + stat_summary(fun.y="mean", geom="point", shape=23, size=1, fill="orange")
+grid.arrange(p28)
+
+print('EstimatedLoss are highest for Chargedoff and Defaulted Loans and least for current Loan')
+
+#Analysis of 2nd Set of Variables
+print(" I would like to analyse, mainly, for Chargedoff, Cancelled and Completed LoanStatus's")
+
+#TODO : StatedMonthlyIncome vs LoanStatus
+print('StatedMonthlyIncome vs LoanStatus')
+aggdata <-aggregate(df$StatedMonthlyIncome,by=list(df$LoanStatus),FUN=mean, na.rm=TRUE)  
+aggdata <- as.data.frame(subset(aggdata,aggdata$Group.1 %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current')))
+
+p29 <- ggplot(aes(StatedMonthlyIncome, ..count.., color = LoanStatus), data=subset(df, df$StatedMonthlyIncome < quantile(df$StatedMonthlyIncome, 0.99) & df$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) + 
+  geom_density() 
+grid.arrange(p29)
+
+print('The distributions are positively skewed, but did not draw any major hypothesis')
+
+#TODO : OpenCreditLines vs LoanStatus
+
+print('OpenCreditLines vs LoanStatus')
+#plotting the bar graph of mean of OpenCreditLines
+aggdata <-aggregate(df$OpenCreditLines, by=list(df$LoanStatus),FUN=mean, na.rm=TRUE)   
+c('LoanStatus', 'MeanOpenCreditLines') -> names(aggdata)
+p30 <- ggplot(aes(LoanStatus, MeanOpenCreditLines), data= subset(aggdata,aggdata$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) +
+  geom_bar(stat="identity", fill = 'lightblue') 
+print('A bit of a dead End, there is not much conclusion that can be drawn here')
+grid.arrange(p30)
+
+#TODO : TotalInquiries vs LoanStatus
+print('TotalInquiries vs LoanStatus')
+aggdata <-aggregate(df$TotalInquiries, by=list(df$LoanStatus),FUN=mean, na.rm=TRUE)   
+c('LoanStatus', 'MeanTotalInquiries') -> names(aggdata)
+p31<- ggplot(aes(LoanStatus, MeanTotalInquiries), data= subset(aggdata,aggdata$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) +
+  geom_bar(stat="identity", fill = 'lightblue') 
+print('Difference in MeanTotalInquiries for Completed vs Defaulted and Chargedoff LoanStatus is not very substanial.')
+grid.arrange(p31)
+
+#TODO : EmploymentStatusDuration vs LoanStatus
+print('EmploymentStatusDuration vs LoanStatus')
+p32 <- ggplot(aes(EmploymentStatusDuration, ..count.., color = LoanStatus), data=subset(df, df$EmploymentStatusDuration < na.omit(df$EmploymentStatusDuration)  & df$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) + 
+  geom_density() + scale_x_log10()
+grid.arrange(p32)
+
+print('Current and Completed LoanStatus follow LogNormal Distribution, whereas Chargedoff and Defaulted are platykurptic.')
+
+#TODO : DebtToIncomeRatio vs LoanStatus
+print('DebtToIncomeRatio vs LoanStatus')
+p33 <- ggplot(aes(DebtToIncomeRatio, ..count.., color = LoanStatus), data=subset(df, df$DebtToIncomeRatio < quantile(df$DebtToIncomeRatio, 0.99, na.rm = TRUE) & df$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) + geom_density() 
+grid.arrange(p33)
+
+print('Current and Completed LoanStatus follow Normal Distribution, whereas Chargedoff and Defaulted are platykurptic.')
+
+#TODO : LoanOriginalAmount vs LoanStatus
+print('LoanOriginalAmount vs LoanStatus')
+meanLoanOriginalAmount <- df[c('LoanStatus', 'LoanOriginalAmount')] %>% 
+    group_by(LoanStatus) %>% 
+    summarise (mean = mean(LoanOriginalAmount), median = median(LoanOriginalAmount))
+meanLoanOriginalAmount <- melt(as.data.frame(meanLoanOriginalAmount), id = 'LoanStatus')
+
+p34 <- ggplot(aes(LoanStatus, value, fill = variable), data= subset(meanLoanOriginalAmount,meanLoanOriginalAmount$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) +
+  geom_bar(stat="identity", position = 'dodge')
+grid.arrange(p34)
+
+print('median LoanOriginalAmount for Completed LoanStatus is slightly higher than Chargedoff and Defaulted LoanStatus. both mean and median are the highest for Current LoanStatus')
+
+print('ProsperScore vs LoanStatus')
+df$ProsperScore = as.numeric(df$ProsperScore)
+meanProsperScore <- df[c('ProsperScore', 'LoanStatus')] %>% 
+    group_by(LoanStatus) %>% 
+    summarise (mean = mean(ProsperScore), median = median(ProsperScore))
+meanProsperScore <- melt(as.data.frame(meanProsperScore), id = 'LoanStatus')
+
+p35 <- ggplot(aes(LoanStatus, value, fill = variable), data= subset(meanProsperScore,meanProsperScore$LoanStatus %in% c('Defaulted', 'Chargedoff', 'Completed', 'Current'))) +
+  geom_bar(stat="identity", position = 'dodge')
+grid.arrange(p35)
+
+df$ProsperScore = as.factor(df$ProsperScore)
+
+print('The median ProsperScore for CompletedLoans is 7, whereas for Chargedoff and Defaulted loans is 5, 6 respectively. This shows the ProsperScore are fairly consistent with Risk Estimates, riskier loans are more likely to Default or Chargedoff')
+
+print('ListingCraetionDate vs ProsperScore')
+# ListingCreationDate vs ProsperScore
+aggdata <-aggregate(as.numeric(df$ProsperScore), by=list(df$ListingCreationDate),FUN=mean, na.rm=TRUE)
+names(aggdata) <- c('ListingCreationDate', 'MeanProsperScore')
+p36 <- ggplot(aes(ListingCreationDate, MeanProsperScore), data = aggdata) +  geom_bar(stat = 'identity') 
+grid.arrange(p36)
+
+print('Post July 2009, we see that ProsperScore is decreasing and at the start of 2013, it was the least and post-2013 it is increasing, It shows the service accomodating people with less ProsperScores')
+
+#TODO: Investors with SIngle Investments in all LoanStatus
+print('Investors with Single Investments in all LoanStatus')
+p37 <- ggplot(aes(LoanStatus, ..count..), data = subset(df, df$Investors == 1)) + geom_bar( fill = 'red') + xlab('Number of Investors = 1')
+p38<- ggplot(aes(LoanStatus, ..count..), data = subset(df, df$Investors != 1)) +
+  geom_bar(fill = 'black') + xlab('Number of Investors > 1')
+grid.arrange(p37,p38)
+
+print('Fairly high percent of single Investors have Invested in CurrentLoans, but the number of loans completed is higher for Investors>1')
+```
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+##### I segregated the varibales into 2 sets and analysed the relationships of feature of interest in each set. EstimatedReturn vs ProsperScore gave good insights, Loans with high risk gave higher returns on average and 1st quartile. 
+##### For LoanStatus I was mainly concerned with Current, Completed, Defaulted and Chargedoff LoanStatus, to see how loans in these types differ. I observed that EstimatedLoss is highest for Chargedoff and Defaulted Loans and least for Current Loan
+##### Did not observe strong correlation of EstimatedReturn with LoanOriginalAmount. But there was high variance at low LoanOriginalAmount, and variance decresed as the LoanOriginalAmount Increased.
+#####In LoanOriginalAmount vs LoanStatus, median LoanOriginalAmount for Completed LoanStatus is slightly higher than Chargedoff and Defaulted LoanStatus
+#####Finally, In most other plots wrt to variable of interest, I could not make strong hypothesis from the plot as there was neither strong corelation nor any siginificant difference between types of LoanStatus
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+#####In the corrplot, there were weak correlations between ProsperScore and Investors and TotalInquiries and a strong correlation with EstimatedEffectiveYield. Surpirsingly for other varibales, there were no strong correlation observed. Only one other strong correlation was observed between EstimatedEffectiveYield and EstimatedReturn. This seems obvious. 
+#####Also, Fairly high percent of single Investors have Invested in CurrentLoans, but the number of completed Loans is higher for Investors>1 than for single Investors
+
+### What was the strongest relationship you found?
+##### EstimatedReturn vs ProsperScore was the strongest relation I found. Interestingly loans with highest risk have provided highest median and mean returns and Least riskiest Loans have given lowest returns. Also, 1st quartile return is highest for most risky loan
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, Multivariate_Plots}
+#Plot1 : EstimatedReturn vs LoanOriginalAmount vs ProsperScore
+print('EstimatedReturn vs LoanOriginalAmount vs ProsperScore')
+p39 <- ggplot(aes(LoanOriginalAmount, EstimatedReturn, color = ProsperScore), data = df) + 
+    geom_point()
+grid.arrange(p39)
+
+print('The variance is very high and the distribution is not very clear, instead faceting by ProsperScore')
+p40 <- ggplot(aes(LoanOriginalAmount, EstimatedReturn), data = df) + 
+    geom_point() + facet_wrap(~ProsperScore)
+grid.arrange(p40)
+
+print('This plot is better, we can see in plots where ProsperScore = 2,3 and 4 that LoanOriginalAmount is less and as the ProsperScore increases Loan Amount increases.')
+
+
+#Plot2 : EmploymentStatusDuration vs StateMonthlyIncome vs LoanStatus
+p41 <- ggplot(aes(EmploymentStatusDuration, StatedMonthlyIncome), data = subset(df, df$StatedMonthlyIncome < quantile(df$StatedMonthlyIncome, .99))) +  geom_point() + facet_wrap(~ProsperScore)
+
+grid.arrange(p41)
+
+print('Variance is very High. Can not draw any strong hypothesis from above')
+
+#Plot3 : DebtToIncomeRatio vs EstimatedReturn vs ProsperScore
+p42 <- ggplot(aes(DebtToIncomeRatio, EstimatedReturn), data = subset(df, df$DebtToIncomeRatio < quantile(df$DebtToIncomeRatio, .99, na.rm = T))) +  geom_point() + facet_wrap(~ProsperScore)
+
+grid.arrange(p42)
+
+print('Again the variance is very high to make solid hypothesis')
+
+#plot4 : ListingCreationDate vs MeanProsperScore faceted by Loan Status
+print('ListingCreationDate vs MeanProsperScore faceted by Loan Status. This is done to see the how the MeanProspoerScore evolved over time for each LoanStatus')
+aggdata <-aggregate(as.numeric(df$ProsperScore), by=list(df$ListingCreationDate, df$LoanStatus),FUN=mean, na.rm=TRUE)
+names(aggdata) <- c('ListingCreationDate', 'LoanStatus', 'MeanProsperScore')
+
+p43 <- ggplot(aes(ListingCreationDate, MeanProsperScore), data = aggdata) +  geom_point() + facet_wrap(~LoanStatus)
+
+grid.arrange(p43)
+print('The variance of MeanProsperScore for Current LoanStatus is the least. However, the variance of MeanProsperScore across every other LoanStatus is still very high.')
+
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+####Observed 2 interesting points:
+####First, we can see from plot of EstimatedReturns vs LoanOriginalAmount faceted  by ProsperScore that for ProsperScore = 2,3 and 4 the LoanOriginalAmount is less and as the ProsperScore increases Loan Amount increases. In general, LoanAmounts are less for riskier Loans, Also from the correlation plot we saw a negative correlation (-.53) between EstimatedReturns and Prosperscore
+####Second, The variance of MeanProsperScore for Current LoanStatus is the least. However, the variance of MeanProsperScore across every other LoanStatus is still very high.
+
+### Were there any interesting or surprising interactions between features?
+#####We could hypothesize new Strategy of Prosper Investors by observing the plot of Evolution of MeanProsperScore since 2009, across different LoanStatus. For current Loans the variance of MeanProsperScore is the least among all LoanStatus. One hypothesis could be Investors have taken a new decision to give more weightage to ProsperScore, and mainly selecting Loans from middle of the ProsperScore Distribution
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One}
+df$ProsperScore = as.numeric(df$ProsperScore)
+mcor <- cor(df[c(4,5,6,7,9,10,11,12,13,14,15,18,20)], use = 'complete.obs')
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(mcor, method="ellipse", shade.col=NA, tl.col="black", tl.srt=45,
+         col=col(200), addCoef.col="black", addcolorlabel="no", order="AOE")
+df$ProsperScore = as.factor(df$ProsperScore)
+```
+
+### Description One
+####It is a correlationplot among all the numeric and int variables. Also converted ProsperScore to numeric just for this plot. ProsperScore has negative correlation with EstimatedEffectiveYeild, EstimatedLoss and EstimatedReturn. Has weak correlation with TotalInquiries and DebtToIncomeRatio and has weak positive correlation with Investors. Surprisingly we did not observe any significant correlations among other variables except for EstimatedReturn, EstimatedEffectiveYield and EstimatedLoss.
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+#Plot1 : EstimatedReturn vs LoanOriginalAmount vs ProsperScore
+print('EstimatedReturn vs LoanOriginalAmount vs ProsperScore')
+p45 <- ggplot(aes(LoanOriginalAmount, EstimatedReturn), data = df) + geom_point(position = 'jitter', alpha = .05, color = '#000099') + facet_wrap(~ProsperScore) +theme(strip.text = element_text(face="bold", size=rel(1.5)),
+strip.background = element_rect(fill="pink", colour="lightblue",
+size=1)) + scale_x_discrete(limits= c(10000, 20000, 30000), labels = c('10k','20k', '30k' ))+ xlab('Original Loan Amount') + ylab('Estimated Return Faceted with ProsperScore')
+plot(p45)
+
+```
+
+### Description Two
+####We can see in plots where ProsperScore = 1, 2 and 3  LoanOriginalAmount is less and as the ProsperScore increases Loan Amount increases. Also, The variance seems to follow a normal distribution from ProsperScore 2 to 11. 
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+print('ListingCreationDate vs MeanProsperScore faceted by Loan Status')
+aggdata <-aggregate(as.numeric(df$ProsperScore), by=list(df$ListingCreationDate, df$LoanStatus),FUN=mean, na.rm=TRUE)
+names(aggdata) <- c('ListingCreationDate', 'LoanStatus', 'MeanProsperScore')
+
+p46 <- ggplot(aes(ListingCreationDate, MeanProsperScore), data = aggdata) +  geom_point(position = 'jitter', alpha = .2, color = '#000099') + facet_wrap(~LoanStatus)+ theme(strip.text = element_text(face="bold", size=rel(0.84)),
+strip.background = element_rect(fill="pink", colour="lightblue",
+size=1))
+plot(p46)
+```
+
+### Description Three
+####I, mainly, wanted to look at Chargedoff, Completed, Current and Defaulted LoanStatus. Chargedoff Loans show high variance across MeanProsperScores, but they were not prominent after mid 2013, Same is the case for Defaulted LoanStatus. Also, the variance increased for Completed LoanStatus and for CurrentLoanStatus the variance is small, perhaps reflecting the new strategy of Investors to select loans from the middle ProsperScores distribution
+------
+
+# Reflection
+#####It was an interesting challenge to start-off, there were 81 variables, to understand what each variable meant, and then to shrink the list to 18 variables took some time. I thought from an Investor perspective to see what parameters give a strong correlation to Estimatedreturn, and what are the different customer profiles with defaulted/chargedoff and Completed Loanstatus. 
+#####It was a good learning experince as initially, I had seen a lot of dead ends, mainly as I could not find strong correlations to explore further. Then I decided to see the distributions across categorical variables, this approach gave me better picture of how the variables of interest (EstimatedReturn and LoanStatus)vary across multiple variables. 
+#####Further I would like to test the hypothesis,of the new strategy of Investors to select loans with averageProsperScore in a small range as was observed in the MainPlot3.
+#####There is so much more that could be done, firstly testing all the variables and then choosing the best ones from them. Second, a classification model based on customer profile to test whether a particular listing will be defaulted/Chargedoff. Third, would be to better understand why there is a difference between EstimatedReturn given in the dataset with EstimatedReturnCalc (EstimatedEffectiveYield - EstimatedLoss)
